@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>职称材料整理助手</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f5f6f8; color: #333; line-height: 1.6;
+  }
+  .container { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
+  .unlocked-badge {
+    display: none; background: #e8f5e9; color: #2e7d32;
+    font-size: 12px; padding: 3px 10px; border-radius: 12px;
+    margin-left: 8px; vertical-align: middle;
+  }
+  .drop-zone {
+    border: 2px dashed #c5c9d0; border-radius: 10px; background: #fff;
+    padding: 36px 16px; text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s; margin-bottom: 20px;
+  }
+  .drop-zone.dragover { border-color: #4a90d9; background: #f0f6ff; }
+  .drop-zone p { color: #888; font-size: 14px; }
+  .drop-zone strong { color: #4a90d9; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .card {
+    background: #fff; border-radius: 10px; padding: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  .card img {
+    width: 100%; height: 120px; object-fit: contain;
+    background: #fafafa; border-radius: 6px; display: block;
+  }
+  .card .filename {
+    font-size: 11px; color: #999; margin: 6px 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag {
+    font-size: 11px; padding: 4px 8px; border-radius: 12px;
+    border: 1px solid #d5d9e0; background: #fff; color: #666;
+    cursor: pointer; transition: all .15s;
+  }
+  .tag:hover { border-color: #4a90d9; color: #4a90d9; }
+  .tag.active { background: #4a90d9; border-color: #4a90d9; color: #fff; }
+  .card .remove {
+    float: right; font-size: 11px; color: #bbb; cursor: pointer;
+  }
+  .card .remove:hover { color: #e53935; }
+  .options { background: #fff; border-radius: 10px; padding: 16px; margin: 20px 0; }
+  .options label { font-size: 14px; margin-right: 8px; }
+  .options input[type=text] {
+    padding: 7px 10px; border: 1px solid #d5d9e0; border-radius: 6px;
+    font-size: 14px; width: 200px; outline: none;
+  }
+  .options input[type=text]:focus { border-color: #4a90d9; }
+  .btn-primary {
+    display: block; width: 100%; padding: 13px; font-size: 16px;
+    background: #4a90d9; color: #fff; border: none; border-radius: 8px;
+    cursor: pointer; font-weight: 600; transition: background .2s;
+  }
+  .btn-primary:hover { background: #3a7bc0; }
+  .btn-primary:disabled { background: #b0c4de; cursor: not-allowed; }
+  .status { text-align: center; font-size: 13px; margin-top: 10px; min-height: 20px; }
+  .status.error { color: #e53935; }
+  .status.ok { color: #2e7d32; }
+  .preview-box { margin-top: 22px; display: none; }
+  .preview-box iframe {
+    width: 100%; height: 520px; border: 1px solid #d5d9e0;
+    border-radius: 8px; background: #fff;
+  }
+  .btn-download {
+    display: block; width: 100%; padding: 13px; font-size: 16px;
+    background: #2e7d32; color: #fff; border: none; border-radius: 8px;
+    cursor: pointer; font-weight: 600; margin-top: 12px;
+  }
+  .btn-download:hover { background: #256428; }
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 16px;
+  }
+  .modal-mask.hidden { display: none; }
+  .modal {
+    background: #fff; border-radius: 14px; padding: 28px 24px;
+    max-width: 380px; width: 100%; text-align: center;
+    max-height: 92vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 18px; margin-bottom: 6px; }
+  .modal .price { color: #e53935; font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .modal .qr {
+    width: 200px; height: 200px; object-fit: contain;
+    border: 1px solid #eee; border-radius: 8px; margin: 0 auto 12px;
+    display: block; background: #fafafa;
+  }
+  .modal .tip { font-size: 13px; color: #666; margin-bottom: 14px; text-align: left; }
+  .modal .tip b { color: #333; }
+  .modal input[type=text] {
+    width: 100%; padding: 10px 12px; border: 1px solid #d5d9e0;
+    border-radius: 8px; font-size: 15px; text-align: center;
+    letter-spacing: 1px; outline: none; margin-bottom: 12px;
+  }
+  .modal input[type=text]:focus { border-color: #4a90d9; }
+  .modal .btn-unlock {
+    width: 100%; padding: 11px; font-size: 15px; background: #4a90d9;
+    color: #fff; border: none; border-radius: 8px; cursor: pointer;
+    font-weight: 600;
+  }
+  .modal .btn-unlock:disabled { background: #b0c4de; cursor: not-allowed; }
+  .modal .msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .modal .msg.error { color: #e53935; }
+  .modal .msg.ok { color: #2e7d32; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>职称材料整理助手<span class="unlocked-badge" id="unlockedBadge">已解锁</span></h1>
+  <p class="subtitle">图片不上传服务器，全部在本机浏览器内处理。按评审要求自动排序、压缩、合并、加页码。</p>
+
+  <div class="drop-zone" id="dropZone">
+    <p><strong>点击选择图片</strong>，或把证书图片拖拽到这里</p>
+    <p style="font-size:12px;margin-top:6px;">支持 JPG / PNG，可一次多选</p>
+    <input type="file" id="fileInput" accept="image/*" multiple hidden>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="options" id="options" style="display:none;">
+    <label for="nameInput">姓名（选填）：</label>
+    <input type="text" id="nameInput" placeholder="用于生成文件名">
+  </div>
+
+  <button class="btn-primary" id="generateBtn" style="display:none;">生成 PDF</button>
+  <div class="status" id="status"></div>
+
+  <div class="preview-box" id="previewBox">
+    <h2 style="font-size:16px;margin-bottom:10px;">预览</h2>
+    <iframe id="previewFrame"></iframe>
+    <button class="btn-download" id="downloadBtn">下载 PDF</button>
+  </div>
+</div>
+
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <h2>解锁使用</h2>
+    <div class="price">9.9 元 / 次</div>
+    <img class="qr" src="assets/pay-qr.png" alt="收款码"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+    <p style="display:none;color:#e53935;font-size:13px;margin-bottom:12px;">收款码未加载，请替换 assets/pay-qr.png</p>
+    <div class="tip">
+      扫码支付后，添加微信 <b>你的微信号</b>，<br>
+      发送支付成功截图，获取验证码。
+    </div>
+    <input type="text" id="codeInput" placeholder="请输入验证码，如 ZCL-XXXXXXXX" autocomplete="off">
+    <button class="btn-unlock" id="unlockBtn">验证并进入</button>
+    <div class="msg" id="unlockMsg"></div>
+  </div>
+</div>
+
+<script src="lib/pdf-lib.min.js"></script>
+<script>
+/* ===================== 配置 ===================== */
+const WECHAT_ID = "你的微信号"; // 改成你的微信号
+const SESSION_KEY = "zcl_unlocked";
+
+/* 有效验证码列表 —— 发码时把新码加到这里，提交代码即可 */
+const VALID_CODES = [
+  "ZCL-A7K3M9Q2",
+  "ZCL-B8L4N1R3",
+  "ZCL-C9M5P2S4",
+  // 在这里继续添加...
+];
+
+/* 排序规则 */
+const CATEGORIES = [
+  { key: "teacher_cert", label: "教师资格证", order: 1 },
+  { key: "current_title", label: "现任职称聘书", order: 2 },
+  { key: "education", label: "学历学位证书", order: 3 },
+  { key: "annual_review", label: "年度考核表", order: 4 },
+  { key: "training", label: "继续教育证明", order: 5 },
+  { key: "teaching_award", label: "教学获奖", order: 6 },
+  { key: "honor_award", label: "荣誉获奖", order: 7 },
+  { key: "research", label: "论文课题著作", order: 8 },
+  { key: "other", label: "其他材料", order: 9 }
+];
+
+let items = [];
+let uid = 0;
+let generatedBlob = null;
+
+const $ = id => document.getElementById(id);
+const dropZone = $("dropZone");
+const fileInput = $("fileInput");
+const grid = $("grid");
+const optionsBox = $("options");
+const nameInput = $("nameInput");
+const generateBtn = $("generateBtn");
+const statusEl = $("status");
+const previewBox = $("previewBox");
+const previewFrame = $("previewFrame");
+const downloadBtn = $("downloadBtn");
+const modalMask = $("modalMask");
+const codeInput = $("codeInput");
+const unlockBtn = $("unlockBtn");
+const unlockMsg = $("unlockMsg");
+const unlockedBadge = $("unlockedBadge");
+
+/* ===================== 解锁逻辑（纯前端比对） ===================== */
+function setUnlocked() {
+  sessionStorage.setItem(SESSION_KEY, "1");
+  modalMask.classList.add("hidden");
+  unlockedBadge.style.display = "inline-block";
+}
+if (sessionStorage.getItem(SESSION_KEY) === "1") setUnlocked();
+
+unlockBtn.addEventListener("click", () => {
+  const code = codeInput.value.trim().toUpperCase();
+  if (!code) { showUnlockMsg("请输入验证码", "error"); return; }
+  unlockBtn.disabled = true;
+  showUnlockMsg("验证中...", "");
+  // 纯前端比对
+  setTimeout(() => {
+    if (VALID_CODES.includes(code)) {
+      showUnlockMsg("验证通过", "ok");
+      setTimeout(setUnlocked, 400);
+    } else {
+      showUnlockMsg("验证码无效，请检查后重试", "error");
+      unlockBtn.disabled = false;
+    }
+  }, 200);
+});
+function showUnlockMsg(text, cls) {
+  unlockMsg.textContent = text;
+  unlockMsg.className = "msg " + cls;
+}
+
+/* ===================== 图片上传 ===================== */
+dropZone.addEventListener("click", () => fileInput.click());
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault(); dropZone.classList.remove("dragover");
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener("change", e => { addFiles(e.target.files); fileInput.value = ""; });
+
+function addFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith("image/"));
+  if (!files.length) return;
+  files.forEach(f => {
+    items.push({ id: ++uid, file: f, url: URL.createObjectURL(f), category: null });
+  });
+  renderGrid();
+}
+
+function renderGrid() {
+  grid.innerHTML = "";
+  items.forEach(item => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const img = document.createElement("img");
+    img.src = item.url;
+    card.appendChild(img);
+    const fn = document.createElement("div");
+    fn.className = "filename";
+    fn.textContent = item.file.name;
+    card.appendChild(fn);
+    const tags = document.createElement("div");
+    tags.className = "tags";
+    CATEGORIES.forEach(cat => {
+      const t = document.createElement("span");
+      t.className = "tag" + (item.category === cat.key ? " active" : "");
+      t.textContent = cat.label;
+      t.addEventListener("click", () => {
+        item.category = item.category === cat.key ? null : cat.key;
+        renderGrid();
+      });
+      tags.appendChild(t);
+    });
+    card.appendChild(tags);
+    const rm = document.createElement("span");
+    rm.className = "remove";
+    rm.textContent = "移除";
+    rm.addEventListener("click", () => {
+      items = items.filter(i => i.id !== item.id);
+      URL.revokeObjectURL(item.url);
+      renderGrid();
+    });
+    card.appendChild(rm);
+    grid.appendChild(card);
+  });
+  const hasItems = items.length > 0;
+  optionsBox.style.display = hasItems ? "block" : "none";
+  generateBtn.style.display = hasItems ? "block" : "none";
+  if (!hasItems) previewBox.style.display = "none";
+}
+
+/* ===================== 图片压缩 ===================== */
+const MAX_EDGE = 1440;
+const TARGET_QUALITY_START = 0.85;
+const TARGET_QUALITY_MIN = 0.5;
+
+async function loadBitmap(file) {
+  if ("createImageBitmap" in window) {
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch (e) {}
+  }
+  return await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function compressImage(file, quality) {
+  const bmp = await loadBitmap(file);
+  const w = bmp.width, h = bmp.height;
+  const scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+  const cw = Math.round(w * scale), ch = Math.round(h * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = cw; canvas.height = ch;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, cw, ch);
+  ctx.drawImage(bmp, 0, 0, cw, ch);
+  if (bmp.close) bmp.close();
+  const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", quality));
+  return { blob, width: cw, height: ch };
+}
+
+async function makePageNumberImage(text) {
+  const canvas = document.createElement("canvas");
+  const dpr = 2;
+  const fontSize = 20;
+  canvas.width = 80 * dpr;
+  canvas.height = 30 * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, 80, 30);
+  ctx.fillStyle = "#666";
+  ctx.font = `${fontSize}px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 40, 15);
+  const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
+  const buf = await blob.arrayBuffer();
+  return new Uint8Array(buf);
+}
+
+/* ===================== 生成 PDF ===================== */
+generateBtn.addEventListener("click", async () => {
+  if (!items.length) return;
+  const untagged = items.filter(i => !i.category);
+  if (untagged.length) {
+    showStatus(`还有 ${untagged.length} 张图片未选择类别，请先点选标签。`, "error");
+    return;
+  }
+  generateBtn.disabled = true;
+  previewBox.style.display = "none";
+  showStatus("正在压缩图片并生成 PDF...", "");
+
+  try {
+    const sorted = [...items].sort((a, b) => {
+      const oa = CATEGORIES.find(c => c.key === a.category)?.order ?? 99;
+      const ob = CATEGORIES.find(c => c.key === b.category)?.order ?? 99;
+      return oa - ob;
+    });
+
+    const compressed = [];
+    for (const item of sorted) {
+      const { blob, width, height } = await compressImage(item.file, TARGET_QUALITY_START);
+      compressed.push({ blob, width, height });
+    }
+
+    let quality = TARGET_QUALITY_START;
+    let pdfBytes;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        compressed.length = 0;
+        for (const item of sorted) {
+          const { blob, width, height } = await compressImage(item.file, quality);
+          compressed.push({ blob, width, height });
+        }
+      }
+      pdfBytes = await buildPdf(compressed);
+      if (pdfBytes.byteLength <= 2 * 1024 * 1024) break;
+      quality -= 0.15;
+      if (quality < TARGET_QUALITY_MIN) quality = TARGET_QUALITY_MIN;
+    }
+
+    const finalBytes = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength);
+    generatedBlob = new Blob([finalBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(generatedBlob);
+    previewFrame.src = url;
+    previewBox.style.display = "block";
+    const sizeMB = (generatedBlob.size / 1024 / 1024).toFixed(2);
+    if (generatedBlob.size > 2 * 1024 * 1024) {
+      showStatus(`PDF 已生成，但大小为 ${sizeMB}MB，超过 2MB。建议减少图片数量或手动拆分。`, "error");
+    } else {
+      showStatus(`PDF 已生成，大小 ${sizeMB}MB，符合 2MB 以内要求。`, "ok");
+    }
+    previewBox.scrollIntoView({ behavior: "smooth" });
+  } catch (e) {
+    console.error(e);
+    showStatus("生成失败：" + (e.message || "未知错误"), "error");
+  } finally {
+    generateBtn.disabled = false;
+  }
+});
+
+async function buildPdf(compressedImages) {
+  const { PDFDocument } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  for (let i = 0; i < compressedImages.length; i++) {
+    const { blob, width, height } = compressedImages[i];
+    const imgBytes = new Uint8Array(await blob.arrayBuffer());
+    const img = await pdfDoc.embedJpg(imgBytes);
+    const A4_W = 595.28, A4_H = 841.89;
+    const page = pdfDoc.addPage([A4_W, A4_H]);
+    const margin = 30;
+    const availW = A4_W - margin * 2;
+    const availH = A4_H - margin * 2 - 20;
+    const scale = Math.min(availW / width, availH / height);
+    const dw = width * scale, dh = height * scale;
+    const x = (A4_W - dw) / 2;
+    const y = (A4_H - dh) / 2 + 10;
+    page.drawImage(img, { x, y, width: dw, height: dh });
+    const pnBytes = await makePageNumberImage(String(i + 1));
+    const pnImg = await pdfDoc.embedPng(pnBytes);
+    page.drawImage(pnImg, { x: (A4_W - 40) / 2, y: 12, width: 40, height: 15 });
+  }
+  return await pdfDoc.save();
+}
+
+downloadBtn.addEventListener("click", () => {
+  if (!generatedBlob) return;
+  const name = nameInput.value.trim();
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = name ? `${name}_职称材料_${date}.pdf` : `职称材料_合并_${date}.pdf`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(generatedBlob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
+
+function showStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = "status " + (cls || "");
+}
+</script>
+</body>
+</html>
